@@ -1,0 +1,118 @@
+change_status:
+  name: Change Status
+  description: Move a user story or task to a different status
+  fields:
+    item_type:
+      name: Item Type
+      description: Type of item (user_story or task)
+      required: true
+      selector:
+        select:
+          options:
+            - user_story
+            - task
+    item_id:
+      name: Item ID
+      description: The Taiga ID of the item
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    status_name:
+      name: Status Name
+      description: Target status name (e.g., "In progress", "Done")
+      required: true
+      selector:
+        text:
+    project_id:
+      name: Project ID
+      description: Project ID (required if multiple projects tracked)
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+
+create_user_story:
+  name: Create User Story
+  description: Create a new user story in Taiga
+  fields:
+    project_id:
+      name: Project ID
+      description: The Taiga project ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    subject:
+      name: Subject
+      description: The title of the user story
+      required: true
+      selector:
+        text:
+    description:
+      name: Description
+      description: Optional description
+      required: false
+      selector:
+        text:
+          multiline: true
+    status_name:
+      name: Initial Status
+      description: Optional initial status name
+      required: false
+      selector:
+        text:
+    epic_id:
+      name: Epic ID
+      description: Optional epic to assign to
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+    tags:
+      name: Tags
+      description: Comma-separated tags
+      required: false
+      selector:
+        text:
+
+create_task:
+  name: Create Task
+  description: Create a new task in Taiga
+  fields:
+    project_id:
+      name: Project ID
+      description: The Taiga project ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    subject:
+      name: Subject
+      description: The title of the task
+      required: true
+      selector:
+        text:
+    user_story_id:
+      name: User Story ID
+      description: Optional parent user story
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+    status_name:
+      name: Initial Status
+      description: Optional initial status name
+      required: false
+      selector:
+        text:
+
+refresh:
+  name: Refresh
+  description: Force refresh Taiga data

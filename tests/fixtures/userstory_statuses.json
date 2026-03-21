@@ -1,0 +1,7 @@
+[
+  {"id": 1, "name": "New", "slug": "new", "color": "#999999", "is_closed": false, "order": 1, "project": 1},
+  {"id": 2, "name": "Ready", "slug": "ready", "color": "#ff8a84", "is_closed": false, "order": 2, "project": 1},
+  {"id": 3, "name": "In progress", "slug": "in-progress", "color": "#ff9900", "is_closed": false, "order": 3, "project": 1},
+  {"id": 4, "name": "Ready for test", "slug": "ready-for-test", "color": "#fcc000", "is_closed": false, "order": 4, "project": 1},
+  {"id": 5, "name": "Done", "slug": "done", "color": "#669900", "is_closed": true, "order": 5, "project": 1}
+]

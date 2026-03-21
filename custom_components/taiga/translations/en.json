@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Taiga",
+        "description": "Enter the URL of your Taiga instance and choose how to authenticate.",
+        "data": {
+          "url": "URL",
+          "auth_method": "Authentication Method"
+        }
+      },
+      "credentials": {
+        "title": "Taiga Credentials",
+        "description": "Enter your Taiga username and password.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "token": {
+        "title": "Taiga Application Token",
+        "description": "Enter an application token generated in Taiga Settings.",
+        "data": {
+          "token": "Application Token"
+        }
+      },
+      "projects": {
+        "title": "Select Projects",
+        "description": "Choose which projects to track in Home Assistant.",
+        "data": {
+          "projects": "Projects"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid authentication credentials",
+      "cannot_connect": "Cannot connect to Taiga",
+      "unknown": "Unexpected error",
+      "no_projects_selected": "Please select at least one project"
+    },
+    "abort": {
+      "already_configured": "This Taiga instance is already configured"
+    }
+  }
+}
