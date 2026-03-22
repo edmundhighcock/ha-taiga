@@ -11,8 +11,14 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_PASSWORD, CONF_URL, CONF_USERNAME
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
-from .api import TaigaAPI, TaigaAuthError, TaigaConnectionError
+from .api import TaigaAPI, TaigaApiError, TaigaAuthError, TaigaConnectionError
 from .const import (
     AUTH_METHOD_CREDENTIALS,
     AUTH_METHOD_TOKEN,
@@ -134,6 +140,9 @@ class TaigaConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_auth"
             except TaigaConnectionError:
                 errors["base"] = "cannot_connect"
+            except TaigaApiError:
+                _LOGGER.exception("API error during authentication")
+                errors["base"] = "cannot_connect"
             except Exception:
                 _LOGGER.exception("Unexpected error during authentication")
                 errors["base"] = "unknown"
@@ -174,6 +183,9 @@ class TaigaConfigFlow(ConfigFlow, domain=DOMAIN):
             except TaigaAuthError:
                 errors["base"] = "invalid_auth"
             except TaigaConnectionError:
+                errors["base"] = "cannot_connect"
+            except TaigaApiError:
+                _LOGGER.exception("API error during token validation")
                 errors["base"] = "cannot_connect"
             except Exception:
                 _LOGGER.exception("Unexpected error during token validation")
@@ -233,14 +245,18 @@ class TaigaConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     def _projects_schema(self) -> vol.Schema:
-        project_options = {
-            str(p["id"]): p["name"] for p in self._projects
-        }
+        options = [
+            SelectOptionDict(value=str(p["id"]), label=p["name"])
+            for p in self._projects
+        ]
         return vol.Schema(
             {
-                vol.Required(CONF_PROJECTS): vol.All(
-                    [vol.In(project_options)],
-                    vol.Length(min=1),
+                vol.Required(CONF_PROJECTS): SelectSelector(
+                    SelectSelectorConfig(
+                        options=options,
+                        multiple=True,
+                        mode=SelectSelectorMode.LIST,
+                    )
                 ),
             }
         )

@@ -31,7 +31,7 @@ A custom Home Assistant integration for [Taiga](https://taiga.io/) project manag
 
 1. Go to **Settings > Devices & Services > Add Integration**
 2. Search for **Taiga**
-3. Enter your Taiga instance URL (e.g., `http://localhost:8099`)
+3. Enter your Taiga instance URL (e.g., `http://localhost:8001`)
 4. Choose authentication method:
    - **Username & Password** — your Taiga credentials
    - **Application Token** — generated in Taiga Settings

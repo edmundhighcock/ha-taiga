@@ -30,7 +30,7 @@ def _create_options_flow(data: dict, options: dict | None = None) -> TaigaOption
 
 
 ENTRY_DATA = {
-    "url": "http://localhost:8099",
+    "url": "http://localhost:8001",
     CONF_AUTH_METHOD: AUTH_METHOD_CREDENTIALS,
     "username": "testuser",
     "password": "testpass",

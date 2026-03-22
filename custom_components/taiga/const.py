@@ -13,4 +13,4 @@ AUTH_METHOD_CREDENTIALS = "credentials"
 AUTH_METHOD_TOKEN = "token"
 
 DEFAULT_SCAN_INTERVAL = 30
-DEFAULT_URL = "http://localhost:8099"
+DEFAULT_URL = "http://localhost:8001"
