@@ -27,6 +27,7 @@ def _make_entry(hass):
         "username": "admin",
         "password": "pass",
     }
+    entry.options = {}
     entry.entry_id = "test_entry"
     return entry
 

@@ -24,6 +24,7 @@ class TaigaBoardCard extends HTMLElement {
       show_assignee: true,
       show_epic: true,
       show_add_form: true,
+      epic_filter: null,
       ...config,
     };
     this._render();
@@ -48,12 +49,24 @@ class TaigaBoardCard extends HTMLElement {
 
     const attrs = state.attributes;
     const itemType = this._config.item_type;
-    const items =
+    let items =
       itemType === "task"
         ? attrs.tasks || []
         : itemType === "both"
           ? [...(attrs.user_stories || []), ...(attrs.tasks || [])]
           : attrs.user_stories || [];
+
+    // Filter by epic if configured
+    if (this._config.epic_filter) {
+      const filter = this._config.epic_filter;
+      items = items.filter((i) => {
+        if (!i.epic) return false;
+        if (typeof filter === "number" || /^\d+$/.test(filter)) {
+          return i.epic_id === parseInt(filter);
+        }
+        return i.epic.toLowerCase().includes(filter.toLowerCase());
+      });
+    }
 
     const statusDefs =
       itemType === "task"

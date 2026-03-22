@@ -8,7 +8,7 @@ from typing import Any
 import aiohttp
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_PASSWORD, CONF_URL, CONF_USERNAME
 from homeassistant.data_entry_flow import FlowResult
 
@@ -18,7 +18,9 @@ from .const import (
     AUTH_METHOD_TOKEN,
     CONF_AUTH_METHOD,
     CONF_PROJECTS,
+    CONF_SCAN_INTERVAL,
     CONF_TOKEN,
+    DEFAULT_SCAN_INTERVAL,
     DEFAULT_URL,
     DOMAIN,
 )
@@ -26,10 +28,49 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+class TaigaOptionsFlow(OptionsFlow):
+    """Handle options for Taiga."""
+
+    def __init__(self, config_entry) -> None:
+        self._projects: list[dict[str, Any]] = []
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the options step for scan interval."""
+        if user_input is not None:
+            return await self._save_options(user_input)
+
+        current_interval = self.config_entry.options.get(
+            CONF_SCAN_INTERVAL,
+            self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SCAN_INTERVAL, default=current_interval
+                    ): vol.All(int, vol.Range(min=5, max=3600)),
+                }
+            ),
+        )
+
+    async def _save_options(self, user_input: dict[str, Any]) -> FlowResult:
+        """Save updated options."""
+        return self.async_create_entry(title="", data=user_input)
+
+
 class TaigaConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Taiga."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(config_entry) -> TaigaOptionsFlow:
+        """Get the options flow handler."""
+        return TaigaOptionsFlow(config_entry)
 
     def __init__(self) -> None:
         self._url: str = DEFAULT_URL

@@ -29,7 +29,10 @@ class TaigaCoordinator(DataUpdateCoordinator[TaigaData]):
         entry: ConfigEntry,
         api: TaigaAPI,
     ) -> None:
-        scan_interval = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        scan_interval = entry.options.get(
+            CONF_SCAN_INTERVAL,
+            entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        )
         super().__init__(
             hass,
             _LOGGER,

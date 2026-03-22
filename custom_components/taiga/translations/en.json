@@ -1,4 +1,15 @@
 {
+  "options": {
+    "step": {
+      "init": {
+        "title": "Taiga Options",
+        "description": "Configure polling interval for Taiga updates.",
+        "data": {
+          "scan_interval": "Scan interval (seconds)"
+        }
+      }
+    }
+  },
   "config": {
     "step": {
       "user": {
