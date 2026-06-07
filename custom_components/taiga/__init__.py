@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import aiohttp
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_URL, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import TaigaAPI
+from .api import TaigaAPI, TaigaAuthError, TaigaConnectionError
 from .const import (
     AUTH_METHOD_CREDENTIALS,
     CONF_AUTH_METHOD,
@@ -29,9 +28,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Authenticate
     if entry.data.get(CONF_AUTH_METHOD) == AUTH_METHOD_CREDENTIALS:
-        await api.authenticate(
-            entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD]
-        )
+        try:
+            await api.authenticate(
+                entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD]
+            )
+        except TaigaConnectionError as err:
+            raise ConfigEntryNotReady(
+                f"Cannot connect to Taiga: {err}"
+            ) from err
+        except TaigaAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
     else:
         api.set_token(entry.data[CONF_TOKEN])
 
