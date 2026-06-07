@@ -73,11 +73,14 @@ class TaigaBoardCard extends HTMLElement {
         ? attrs.statuses?.task || []
         : attrs.statuses?.user_story || [];
 
-    // Filter to configured statuses or show all
-    let visibleStatuses = statusDefs.sort((a, b) => a.order - b.order);
+    // All statuses sorted (for dropdowns — lets users close items)
+    const allStatuses = [...statusDefs].sort((a, b) => a.order - b.order);
+
+    // Column statuses: only open (no "Done" column on the board)
+    let columnStatuses = allStatuses.filter((s) => !s.is_closed);
     if (this._config.statuses) {
       const allowed = this._config.statuses.map((s) => s.toLowerCase());
-      visibleStatuses = visibleStatuses.filter((s) =>
+      columnStatuses = columnStatuses.filter((s) =>
         allowed.includes(s.name.toLowerCase())
       );
     }
@@ -96,9 +99,9 @@ class TaigaBoardCard extends HTMLElement {
         </div>
         <div class="card-content">
           ${viewMode === "kanban"
-            ? this._renderKanban(items, visibleStatuses)
-            : this._renderList(items, visibleStatuses)}
-          ${this._config.show_add_form ? this._renderAddForm(visibleStatuses, attrs) : ""}
+            ? this._renderKanban(items, columnStatuses, allStatuses)
+            : this._renderList(items, columnStatuses, allStatuses)}
+          ${this._config.show_add_form ? this._renderAddForm(columnStatuses, attrs) : ""}
         </div>
       </ha-card>`;
 
@@ -112,8 +115,8 @@ class TaigaBoardCard extends HTMLElement {
     return this.offsetWidth > 600 ? "kanban" : "list";
   }
 
-  _renderKanban(items, statuses) {
-    const columns = statuses
+  _renderKanban(items, columnStatuses, allStatuses) {
+    const columns = columnStatuses
       .map((s) => {
         const columnItems = items.filter(
           (i) => i.status === s.name || i.status_id === s.id
@@ -125,7 +128,7 @@ class TaigaBoardCard extends HTMLElement {
             <span class="column-count">${columnItems.length}</span>
           </div>
           <div class="column-items">
-            ${columnItems.map((item) => this._renderItem(item, statuses)).join("")}
+            ${columnItems.map((item) => this._renderItem(item, allStatuses)).join("")}
           </div>
         </div>`;
       })
@@ -134,8 +137,8 @@ class TaigaBoardCard extends HTMLElement {
     return `<div class="kanban-board">${columns}</div>`;
   }
 
-  _renderList(items, statuses) {
-    const groups = statuses
+  _renderList(items, columnStatuses, allStatuses) {
+    const groups = columnStatuses
       .map((s) => {
         const groupItems = items.filter(
           (i) => i.status === s.name || i.status_id === s.id
@@ -146,7 +149,7 @@ class TaigaBoardCard extends HTMLElement {
           <div class="list-group-header" style="border-left: 3px solid ${s.color}">
             ${s.name} (${groupItems.length})
           </div>
-          ${groupItems.map((item) => this._renderItem(item, statuses)).join("")}
+          ${groupItems.map((item) => this._renderItem(item, allStatuses)).join("")}
         </div>`;
       })
       .join("");
@@ -170,12 +173,23 @@ class TaigaBoardCard extends HTMLElement {
         ? `<span class="epic">${item.epic}</span>`
         : "";
 
-    const statusOptions = statuses
+    const openStatuses = statuses.filter((s) => !s.is_closed);
+    const closedStatuses = statuses.filter((s) => s.is_closed);
+    const openOptions = openStatuses
       .map(
         (s) =>
           `<option value="${s.name}" ${s.name === item.status ? "selected" : ""}>${s.name}</option>`
       )
       .join("");
+    const closedOptions = closedStatuses.length
+      ? `<optgroup label="Close">${closedStatuses
+          .map(
+            (s) =>
+              `<option value="${s.name}" ${s.name === item.status ? "selected" : ""}>${s.name}</option>`
+          )
+          .join("")}</optgroup>`
+      : "";
+    const statusOptions = openOptions + closedOptions;
 
     return `
       <div class="item-card" data-item-id="${item.id}" data-item-type="${item.user_story_id !== undefined ? "task" : "user_story"}">

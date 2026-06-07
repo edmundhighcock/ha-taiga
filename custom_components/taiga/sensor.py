@@ -86,30 +86,47 @@ class TaigaProjectSensor(CoordinatorEntity[TaigaCoordinator], SensorEntity):
         status_name_map_task = {s["id"]: s["name"] for s in data.task_statuses}
         epic_map = {e["id"]: e.get("subject", "") for e in data.epics}
 
-        # Count stories by status
+        # Identify closed statuses so we only expose open items
+        closed_us_ids = {
+            s["id"] for s in data.userstory_statuses if s.get("is_closed")
+        }
+        closed_task_ids = {
+            s["id"] for s in data.task_statuses if s.get("is_closed")
+        }
+
+        open_stories = [
+            s for s in data.user_stories if s.get("status") not in closed_us_ids
+        ]
+        open_tasks = [
+            t for t in data.tasks if t.get("status") not in closed_task_ids
+        ]
+
+        # Count stories by status (open only)
         us_counts: dict[str, int] = {}
         for s in data.userstory_statuses:
-            us_counts[s["name"]] = 0
-        for story in data.user_stories:
+            if not s.get("is_closed"):
+                us_counts[s["name"]] = 0
+        for story in open_stories:
             name = status_name_map_us.get(story.get("status"), "Unknown")
             us_counts[name] = us_counts.get(name, 0) + 1
 
-        # Count tasks by status
+        # Count tasks by status (open only)
         task_counts: dict[str, int] = {}
         for s in data.task_statuses:
-            task_counts[s["name"]] = 0
-        for task in data.tasks:
+            if not s.get("is_closed"):
+                task_counts[s["name"]] = 0
+        for task in open_tasks:
             name = status_name_map_task.get(task.get("status"), "Unknown")
             task_counts[name] = task_counts.get(name, 0) + 1
 
-        # Build item lists for the Lovelace card
+        # Build item lists for the Lovelace card (open only)
         story_list = [
             _format_story(story, status_name_map_us, epic_map, data.members)
-            for story in data.user_stories
+            for story in open_stories
         ]
         task_list = [
             _format_task(task, status_name_map_task, data.members)
-            for task in data.tasks
+            for task in open_tasks
         ]
 
         return {
