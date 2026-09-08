@@ -72,6 +72,15 @@ entity: sensor.taiga_your_project_slug
 | `epic_filter` | string/number | `null` | Filter items by epic name (substring match) or epic ID |
 | `statuses` | list | all | List of status names to show |
 
+> **A note on statuses and `item_type: both`.** Taiga keeps a *separate*
+> status table for user stories and for tasks — different names, and ids
+> that are independent sequences, so they overlap (a task's "New" and a
+> story's "Todo" can both be id 1, and "In progress" can exist in both
+> under different ids). With `item_type: both` the card resolves each
+> row's statuses from that row's own type, and labels the group headings
+> `stories` or `tasks` so two same-named groups stay distinguishable.
+> `statuses:` filters by name within each type.
+
 ### Example: filtered kanban
 
 ```yaml
@@ -94,6 +103,26 @@ statuses:
 | `taiga.create_user_story` | Create a new user story |
 | `taiga.create_task` | Create a new task |
 | `taiga.refresh` | Force a data refresh |
+
+## Development
+
+```bash
+make setup          # install Python test dependencies into venv/
+make test           # everything — Python integration + JavaScript card
+make test-py        # integration only (pytest)
+make test-js        # card only (node --test; needs Node 18+, no npm install)
+```
+
+The card tests in `tests/js/` render `www/taiga-board-card.js` against a
+minimal DOM stub and assert on the resulting HTML — chiefly that a row's
+status options, its displayed status, and its grouping all come from its
+own object type's status table. To check the suite against another
+revision of the card:
+
+```bash
+git show <rev>:www/taiga-board-card.js > /tmp/old-card.js
+TAIGA_CARD_PATH=/tmp/old-card.js make test-js
+```
 
 ## License
 
