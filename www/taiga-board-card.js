@@ -5,6 +5,14 @@
  * Supports changing status and creating new items.
  */
 
+/**
+ * An item's own type, independent of the card's item_type config.
+ * The sensor gives every task a user_story_id key (null when the task
+ * hangs off no story); user stories never carry one.
+ */
+const itemKind = (item) =>
+  item.user_story_id !== undefined ? "task" : "user_story";
+
 class TaigaBoardCard extends HTMLElement {
   constructor() {
     super();
@@ -68,22 +76,46 @@ class TaigaBoardCard extends HTMLElement {
       });
     }
 
-    const statusDefs =
+    // Statuses in Taiga are per-project AND per-object-type: a task's
+    // status table is not a user story's, and their ids overlap (task
+    // "New" and story "Todo" are both id 1). So resolve a table per item
+    // KIND — never one table for the whole card, or a task is offered
+    // statuses it cannot take and displays one it does not have.
+    const sortByOrder = (defs) =>
+      [...(defs || [])].sort((a, b) => a.order - b.order);
+    const allStatusesByKind = {
+      user_story: sortByOrder(attrs.statuses?.user_story),
+      task: sortByOrder(attrs.statuses?.task),
+    };
+
+    const kinds =
       itemType === "task"
-        ? attrs.statuses?.task || []
-        : attrs.statuses?.user_story || [];
+        ? ["task"]
+        : itemType === "both"
+          ? ["user_story", "task"]
+          : ["user_story"];
 
-    // All statuses sorted (for dropdowns — lets users close items)
-    const allStatuses = [...statusDefs].sort((a, b) => a.order - b.order);
+    // Columns: open statuses only (no "Done" column on the board), each
+    // tagged with the kind it belongs to so grouping never crosses tables.
+    const allowed = this._config.statuses
+      ? this._config.statuses.map((s) => s.toLowerCase())
+      : null;
+    const columns = kinds.flatMap((kind) =>
+      allStatusesByKind[kind]
+        .filter((s) => !s.is_closed)
+        .filter((s) => !allowed || allowed.includes(s.name.toLowerCase()))
+        .map((status) => ({ kind, status }))
+    );
 
-    // Column statuses: only open (no "Done" column on the board)
-    let columnStatuses = allStatuses.filter((s) => !s.is_closed);
-    if (this._config.statuses) {
-      const allowed = this._config.statuses.map((s) => s.toLowerCase());
-      columnStatuses = columnStatuses.filter((s) =>
-        allowed.includes(s.name.toLowerCase())
-      );
-    }
+    // Both kinds on one board means duplicate names ("In progress" exists
+    // in both tables), so label the group with its kind in that case only.
+    const labelKind = kinds.length > 1;
+
+    // The add form creates a user story unless the card is task-only.
+    const addKind = itemType === "task" ? "task" : "user_story";
+    const addStatuses = columns
+      .filter((c) => c.kind === addKind)
+      .map((c) => c.status);
 
     // Determine view mode
     const viewMode = this._resolveViewMode();
@@ -99,9 +131,9 @@ class TaigaBoardCard extends HTMLElement {
         </div>
         <div class="card-content">
           ${viewMode === "kanban"
-            ? this._renderKanban(items, columnStatuses, allStatuses)
-            : this._renderList(items, columnStatuses, allStatuses)}
-          ${this._config.show_add_form ? this._renderAddForm(columnStatuses, attrs) : ""}
+            ? this._renderKanban(items, columns, allStatusesByKind, labelKind)
+            : this._renderList(items, columns, allStatusesByKind, labelKind)}
+          ${this._config.show_add_form ? this._renderAddForm(addStatuses, attrs) : ""}
         </div>
       </ha-card>`;
 
@@ -115,41 +147,59 @@ class TaigaBoardCard extends HTMLElement {
     return this.offsetWidth > 600 ? "kanban" : "list";
   }
 
-  _renderKanban(items, columnStatuses, allStatuses) {
-    const columns = columnStatuses
-      .map((s) => {
+  _renderKanban(items, columns, allStatusesByKind, labelKind) {
+    const rendered = columns
+      .map(({ kind, status: s }) => {
         const columnItems = items.filter(
-          (i) => i.status === s.name || i.status_id === s.id
+          (i) =>
+            itemKind(i) === kind &&
+            (i.status === s.name || i.status_id === s.id)
         );
+        const suffix = labelKind
+          ? `<span class="column-kind">${kind === "task" ? "tasks" : "stories"}</span>`
+          : "";
         return `
         <div class="kanban-column">
           <div class="column-header" style="border-top: 3px solid ${s.color}">
-            <span class="column-title">${s.name}</span>
+            <span class="column-title">${s.name}${suffix}</span>
             <span class="column-count">${columnItems.length}</span>
           </div>
           <div class="column-items">
-            ${columnItems.map((item) => this._renderItem(item, allStatuses)).join("")}
+            ${columnItems
+              .map((item) =>
+                this._renderItem(item, allStatusesByKind[itemKind(item)])
+              )
+              .join("")}
           </div>
         </div>`;
       })
       .join("");
 
-    return `<div class="kanban-board">${columns}</div>`;
+    return `<div class="kanban-board">${rendered}</div>`;
   }
 
-  _renderList(items, columnStatuses, allStatuses) {
-    const groups = columnStatuses
-      .map((s) => {
+  _renderList(items, columns, allStatusesByKind, labelKind) {
+    const groups = columns
+      .map(({ kind, status: s }) => {
         const groupItems = items.filter(
-          (i) => i.status === s.name || i.status_id === s.id
+          (i) =>
+            itemKind(i) === kind &&
+            (i.status === s.name || i.status_id === s.id)
         );
         if (groupItems.length === 0) return "";
+        const suffix = labelKind
+          ? `<span class="column-kind">${kind === "task" ? "tasks" : "stories"}</span>`
+          : "";
         return `
         <div class="list-group">
           <div class="list-group-header" style="border-left: 3px solid ${s.color}">
-            ${s.name} (${groupItems.length})
+            ${s.name}${suffix} (${groupItems.length})
           </div>
-          ${groupItems.map((item) => this._renderItem(item, allStatuses)).join("")}
+          ${groupItems
+            .map((item) =>
+              this._renderItem(item, allStatusesByKind[itemKind(item)])
+            )
+            .join("")}
         </div>`;
       })
       .join("");
@@ -192,10 +242,10 @@ class TaigaBoardCard extends HTMLElement {
     const statusOptions = openOptions + closedOptions;
 
     return `
-      <div class="item-card" data-item-id="${item.id}" data-item-type="${item.user_story_id !== undefined ? "task" : "user_story"}">
+      <div class="item-card" data-item-id="${item.id}" data-item-type="${itemKind(item)}">
         <div class="item-header">
           <span class="item-ref">#${item.ref}</span>
-          <select class="status-select" data-item-id="${item.id}" data-item-type="${item.user_story_id !== undefined ? "task" : "user_story"}" data-version="${item.version}">
+          <select class="status-select" data-item-id="${item.id}" data-item-type="${itemKind(item)}" data-version="${item.version}">
             ${statusOptions}
           </select>
         </div>
@@ -363,6 +413,15 @@ class TaigaBoardCard extends HTMLElement {
         margin: 8px 0 4px;
         background: var(--secondary-background-color, #f5f5f5);
         border-radius: 4px;
+      }
+
+      /* Only rendered when stories and tasks share one board, where the
+         same status name can occur in both tables. */
+      .column-kind {
+        margin-left: 6px;
+        font-weight: 400;
+        font-size: 0.85em;
+        opacity: 0.6;
       }
 
       /* Item cards */
