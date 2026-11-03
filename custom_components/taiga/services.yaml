@@ -75,7 +75,7 @@ create_user_story:
           mode: box
     tags:
       name: Tags
-      description: Comma-separated tags
+      description: Comma-separated tags (or a list of tag strings when called from a script/automation)
       required: false
       selector:
         text:

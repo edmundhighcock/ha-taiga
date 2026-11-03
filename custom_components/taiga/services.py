@@ -119,7 +119,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         if tags := call.data.get("tags"):
-            kwargs["tags"] = [t.strip() for t in tags.split(",")]
+            if isinstance(tags, str):
+                kwargs["tags"] = [t.strip() for t in tags.split(",")]
+            else:
+                kwargs["tags"] = list(tags)
 
         result = await coordinator.api.create_user_story(project_id, subject, **kwargs)
 

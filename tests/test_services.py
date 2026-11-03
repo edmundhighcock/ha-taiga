@@ -145,3 +145,42 @@ async def test_create_user_story_epic_link_failure_still_refreshes(
         )
 
     mock_coordinator.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_user_story_tags_as_string(hass, mock_coordinator):
+    """Test that a comma-separated tags string is split into a list."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.create_user_story.return_value = {"id": 42}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "create_user_story",
+        {"project_id": 1, "subject": "A story", "tags": "one, two"},
+        blocking=True,
+    )
+
+    mock_coordinator.api.create_user_story.assert_awaited_once_with(
+        1, "A story", tags=["one", "two"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_user_story_tags_as_list(hass, mock_coordinator):
+    """Test that a list of tags (e.g. from a script call) is accepted as-is,
+    instead of crashing with AttributeError on list.split()."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.create_user_story.return_value = {"id": 42}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "create_user_story",
+        {"project_id": 1, "subject": "A story", "tags": ["one", "two"]},
+        blocking=True,
+    )
+
+    mock_coordinator.api.create_user_story.assert_awaited_once_with(
+        1, "A story", tags=["one", "two"]
+    )
