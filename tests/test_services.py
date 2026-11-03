@@ -13,6 +13,7 @@ from custom_components.taiga.models import TaigaData, TaigaProjectData
 from custom_components.taiga.services import (
     _get_coordinator,
     _resolve_status_id,
+    async_setup_services,
 )
 
 
@@ -99,3 +100,48 @@ def test_resolve_status_project_not_found(mock_coordinator):
     """Test error when project not in coordinator data."""
     with pytest.raises(HomeAssistantError, match="Project 999"):
         _resolve_status_id(mock_coordinator, 999, "user_story", "New")
+
+
+@pytest.mark.asyncio
+async def test_create_user_story_links_epic_correctly(hass, mock_coordinator):
+    """Test that creating a story with an epic_id links it via link_user_story_to_epic.
+
+    Regression test: the handler used to POST {"user_story": id} directly to
+    /api/v1/epics/{epic_id}/related_userstories, which Taiga rejects with
+    400 {"epic": ["This field is required."]}.
+    """
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.create_user_story.return_value = {"id": 42}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "create_user_story",
+        {"project_id": 1, "subject": "A story", "epic_id": 7},
+        blocking=True,
+    )
+
+    mock_coordinator.api.link_user_story_to_epic.assert_awaited_once_with(7, 42)
+    mock_coordinator.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_user_story_epic_link_failure_still_refreshes(
+    hass, mock_coordinator
+):
+    """Test that a failure linking the (already created) story to the epic
+    does not prevent the coordinator from refreshing."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.create_user_story.return_value = {"id": 42}
+    mock_coordinator.api.link_user_story_to_epic.side_effect = Exception("boom")
+    await async_setup_services(hass)
+
+    with pytest.raises(Exception, match="boom"):
+        await hass.services.async_call(
+            DOMAIN,
+            "create_user_story",
+            {"project_id": 1, "subject": "A story", "epic_id": 7},
+            blocking=True,
+        )
+
+    mock_coordinator.async_request_refresh.assert_awaited_once()

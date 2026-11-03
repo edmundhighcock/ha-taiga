@@ -123,15 +123,15 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         result = await coordinator.api.create_user_story(project_id, subject, **kwargs)
 
-        # If epic_id specified, link the story to the epic
-        if epic_id := call.data.get("epic_id"):
-            epic_id = int(epic_id)
-            await coordinator.api._post(
-                f"/api/v1/epics/{epic_id}/related_userstories",
-                json={"user_story": result["id"]},
-            )
-
-        await coordinator.async_request_refresh()
+        # If epic_id specified, link the story to the epic. The story already
+        # exists at this point, so a failure linking it to the epic must not
+        # prevent the coordinator from refreshing.
+        try:
+            if epic_id := call.data.get("epic_id"):
+                epic_id = int(epic_id)
+                await coordinator.api.link_user_story_to_epic(epic_id, result["id"])
+        finally:
+            await coordinator.async_request_refresh()
 
     async def handle_create_task(call: ServiceCall) -> None:
         """Handle create_task service call."""

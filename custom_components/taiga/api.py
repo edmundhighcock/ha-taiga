@@ -171,6 +171,15 @@ class TaigaAPI:
         """Get a single task."""
         return await self._get(f"/api/v1/tasks/{task_id}")
 
+    async def link_user_story_to_epic(
+        self, epic_id: int, user_story_id: int
+    ) -> dict[str, Any]:
+        """Link an existing user story to an epic."""
+        return await self._post(
+            f"/api/v1/epics/{epic_id}/related_userstories",
+            json={"epic": epic_id, "user_story": user_story_id},
+        )
+
     def _headers(self, list_request: bool = False) -> dict[str, str]:
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self._token:
