@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 import pytest_asyncio
 import aiohttp
@@ -212,3 +214,51 @@ async def test_authorization_header(mock_aiohttp, api, projects_list):
     key = ("GET", f"{BASE_URL}/api/v1/projects")
     # aioresponses stores requests - verify at least one was made
     assert len(history) > 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda api: api.get_projects(),
+        lambda api: api.get_user_stories(1),
+        lambda api: api.get_tasks(1),
+        lambda api: api.get_epics(1),
+        lambda api: api.get_userstory_statuses(1),
+        lambda api: api.get_task_statuses(1),
+    ],
+)
+async def test_list_requests_disable_pagination(mock_aiohttp, api, call):
+    """Test that list endpoints ask Taiga to disable pagination.
+
+    Without this header Taiga only returns the first page of results, so
+    the sensor would silently see a fraction of the stories/tasks/epics.
+    """
+    api.set_token("f4k3")
+    mock_aiohttp.get(re.compile(rf"^{re.escape(BASE_URL)}/api/v1/.*"), payload=[])
+
+    await call(api)
+
+    history = mock_aiohttp.requests
+    # Find the (only) request made and check its headers.
+    request_calls = next(iter(history.values()))
+    headers = request_calls[-1].kwargs["headers"]
+    assert headers.get("x-disable-pagination") == "True"
+
+
+@pytest.mark.asyncio
+async def test_single_object_get_does_not_disable_pagination(
+    mock_aiohttp, api, userstories_list
+):
+    """Test that single-object GETs don't send the pagination-disabling header."""
+    api.set_token("f4k3")
+    mock_aiohttp.get(
+        f"{BASE_URL}/api/v1/userstories/58190", payload=userstories_list[0]
+    )
+
+    await api.get_user_story(58190)
+
+    history = mock_aiohttp.requests
+    request_calls = next(iter(history.values()))
+    headers = request_calls[-1].kwargs["headers"]
+    assert "x-disable-pagination" not in headers

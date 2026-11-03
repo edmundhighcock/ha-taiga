@@ -83,7 +83,7 @@ class TaigaAPI:
         params: dict[str, Any] = {}
         if member is not None:
             params["member"] = member
-        return await self._get("/api/v1/projects", params=params)
+        return await self._get("/api/v1/projects", params=params, list_request=True)
 
     async def get_project(self, project_id: int) -> dict[str, Any]:
         """Get a single project's details."""
@@ -94,13 +94,17 @@ class TaigaAPI:
     ) -> list[dict[str, Any]]:
         """Get all user story statuses for a project."""
         return await self._get(
-            "/api/v1/userstory-statuses", params={"project": project_id}
+            "/api/v1/userstory-statuses",
+            params={"project": project_id},
+            list_request=True,
         )
 
     async def get_task_statuses(self, project_id: int) -> list[dict[str, Any]]:
         """Get all task statuses for a project."""
         return await self._get(
-            "/api/v1/task-statuses", params={"project": project_id}
+            "/api/v1/task-statuses",
+            params={"project": project_id},
+            list_request=True,
         )
 
     async def get_user_stories(
@@ -110,7 +114,7 @@ class TaigaAPI:
         params: dict[str, Any] = {"project": project_id}
         if status is not None:
             params["status"] = status
-        return await self._get("/api/v1/userstories", params=params)
+        return await self._get("/api/v1/userstories", params=params, list_request=True)
 
     async def get_tasks(
         self, project_id: int, status: int | None = None
@@ -119,11 +123,13 @@ class TaigaAPI:
         params: dict[str, Any] = {"project": project_id}
         if status is not None:
             params["status"] = status
-        return await self._get("/api/v1/tasks", params=params)
+        return await self._get("/api/v1/tasks", params=params, list_request=True)
 
     async def get_epics(self, project_id: int) -> list[dict[str, Any]]:
         """Get epics for a project."""
-        return await self._get("/api/v1/epics", params={"project": project_id})
+        return await self._get(
+            "/api/v1/epics", params={"project": project_id}, list_request=True
+        )
 
     async def create_user_story(
         self, project_id: int, subject: str, **kwargs: Any
@@ -165,16 +171,25 @@ class TaigaAPI:
         """Get a single task."""
         return await self._get(f"/api/v1/tasks/{task_id}")
 
-    def _headers(self) -> dict[str, str]:
+    def _headers(self, list_request: bool = False) -> dict[str, str]:
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
+        if list_request:
+            # Taiga paginates list endpoints by default; ask it not to so we
+            # get every item in a single response.
+            headers["x-disable-pagination"] = "True"
         return headers
 
     async def _get(
-        self, path: str, params: dict[str, Any] | None = None
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        list_request: bool = False,
     ) -> Any:
-        return await self._request("GET", path, params=params)
+        return await self._request(
+            "GET", path, params=params, list_request=list_request
+        )
 
     async def _post(self, path: str, json: dict[str, Any] | None = None) -> Any:
         return await self._request("POST", path, json=json)
@@ -188,6 +203,7 @@ class TaigaAPI:
         path: str,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        list_request: bool = False,
     ) -> Any:
         url = f"{self._base_url}{path}"
         try:
@@ -196,7 +212,7 @@ class TaigaAPI:
                 url,
                 params=params,
                 json=json,
-                headers=self._headers(),
+                headers=self._headers(list_request=list_request),
             )
         except (aiohttp.ClientError, TimeoutError) as err:
             raise TaigaConnectionError(
