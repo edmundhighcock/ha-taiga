@@ -102,8 +102,8 @@ statuses:
 | `taiga.change_status` | Change an item's status |
 | `taiga.create_user_story` | Create a new user story |
 | `taiga.create_task` | Create a new task |
-| `taiga.update_user_story` | Modify an existing user story's subject, description, or tags |
-| `taiga.update_task` | Modify an existing task's subject or description |
+| `taiga.update_user_story` | Modify an existing user story's subject, description, tags, or due date |
+| `taiga.update_task` | Modify an existing task's subject, description, or due date |
 | `taiga.add_comment` | Add a comment to a user story, task, issue, or epic |
 | `taiga.refresh` | Force a data refresh |
 
@@ -113,6 +113,12 @@ needs each item's current `version` for these writes (optimistic
 concurrency): the integration fetches it automatically and, if a 400
 shows the version went stale in the meantime, re-fetches and retries
 once before giving up.
+
+`create_user_story`, `create_task`, `update_user_story`, and
+`update_task` accept an optional `due_date`, an ISO date string
+(`YYYY-MM-DD`). Taiga's epics have no due date, so `due_date` is not
+offered there. On the two update services, passing an empty `due_date`
+clears the item's existing due date.
 
 ## Development
 

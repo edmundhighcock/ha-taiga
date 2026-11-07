@@ -7,6 +7,6 @@
   "issue_tracker": "https://github.com/edmundhighcock/ha-taiga/issues",
   "iot_class": "local_polling",
   "integration_type": "service",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "requirements": []
 }
