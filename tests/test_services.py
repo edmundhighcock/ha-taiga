@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from homeassistant.exceptions import HomeAssistantError
 
+from custom_components.taiga.api import TaigaApiError
 from custom_components.taiga.const import DOMAIN
 from custom_components.taiga.coordinator import TaigaCoordinator
 from custom_components.taiga.models import TaigaData, TaigaProjectData
@@ -184,3 +185,233 @@ async def test_create_user_story_tags_as_list(hass, mock_coordinator):
     mock_coordinator.api.create_user_story.assert_awaited_once_with(
         1, "A story", tags=["one", "two"]
     )
+
+
+@pytest.mark.asyncio
+async def test_update_user_story_passes_fields(hass, mock_coordinator):
+    """Test that update_user_story passes the given optional fields through."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_user_story",
+        {
+            "project_id": 1,
+            "user_story_id": 58190,
+            "subject": "New subject",
+            "description": "New description",
+            "tags": "one, two",
+        },
+        blocking=True,
+    )
+
+    mock_coordinator.api.update_item.assert_awaited_once_with(
+        "user_story",
+        58190,
+        subject="New subject",
+        description="New description",
+        tags=["one", "two"],
+    )
+    mock_coordinator.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_user_story_tags_as_list(hass, mock_coordinator):
+    """Test that update_user_story accepts tags as a list, not just a string."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_user_story",
+        {"project_id": 1, "user_story_id": 58190, "tags": ["one", "two"]},
+        blocking=True,
+    )
+
+    mock_coordinator.api.update_item.assert_awaited_once_with(
+        "user_story", 58190, tags=["one", "two"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_user_story_requires_a_field(hass, mock_coordinator):
+    """Test that update_user_story rejects calls with no optional field set."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    with pytest.raises(HomeAssistantError, match="At least one"):
+        await hass.services.async_call(
+            DOMAIN,
+            "update_user_story",
+            {"project_id": 1, "user_story_id": 58190},
+            blocking=True,
+        )
+
+    mock_coordinator.api.update_item.assert_not_awaited()
+    mock_coordinator.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_user_story_wraps_api_error(hass, mock_coordinator):
+    """Test that a Taiga API failure is surfaced as a HomeAssistantError."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.update_item.side_effect = TaigaApiError(
+        "API request PATCH /api/v1/userstories/58190 failed with status 400: boom"
+    )
+    await async_setup_services(hass)
+
+    with pytest.raises(HomeAssistantError, match="Failed to update user story"):
+        await hass.services.async_call(
+            DOMAIN,
+            "update_user_story",
+            {"project_id": 1, "user_story_id": 58190, "subject": "New subject"},
+            blocking=True,
+        )
+
+    mock_coordinator.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_task_passes_fields(hass, mock_coordinator):
+    """Test that update_task passes the given optional fields through."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_task",
+        {
+            "project_id": 1,
+            "task_id": 1149,
+            "subject": "New subject",
+            "description": "New description",
+        },
+        blocking=True,
+    )
+
+    mock_coordinator.api.update_item.assert_awaited_once_with(
+        "task", 1149, subject="New subject", description="New description"
+    )
+    mock_coordinator.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_task_requires_a_field(hass, mock_coordinator):
+    """Test that update_task rejects calls with neither subject nor description."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    with pytest.raises(HomeAssistantError, match="At least one"):
+        await hass.services.async_call(
+            DOMAIN,
+            "update_task",
+            {"project_id": 1, "task_id": 1149},
+            blocking=True,
+        )
+
+    mock_coordinator.api.update_item.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_task_wraps_api_error(hass, mock_coordinator):
+    """Test that a Taiga API failure updating a task becomes a HomeAssistantError."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.update_item.side_effect = TaigaApiError("boom")
+    await async_setup_services(hass)
+
+    with pytest.raises(HomeAssistantError, match="Failed to update task"):
+        await hass.services.async_call(
+            DOMAIN,
+            "update_task",
+            {"project_id": 1, "task_id": 1149, "subject": "New subject"},
+            blocking=True,
+        )
+
+    mock_coordinator.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_comment_passes_fields(hass, mock_coordinator):
+    """Test that add_comment forwards item_type, item_id, and comment text."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_comment",
+        {
+            "project_id": 1,
+            "item_type": "task",
+            "item_id": 1149,
+            "comment": "Looks good",
+        },
+        blocking=True,
+    )
+
+    mock_coordinator.api.add_comment.assert_awaited_once_with(
+        "task", 1149, "Looks good"
+    )
+    mock_coordinator.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_add_comment_rejects_invalid_item_type(hass, mock_coordinator):
+    """Test that add_comment rejects an item_type outside the known set."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    with pytest.raises(HomeAssistantError, match="Invalid item_type"):
+        await hass.services.async_call(
+            DOMAIN,
+            "add_comment",
+            {
+                "project_id": 1,
+                "item_type": "sprint",
+                "item_id": 1,
+                "comment": "Looks good",
+            },
+            blocking=True,
+        )
+
+    mock_coordinator.api.add_comment.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_comment_rejects_empty_comment(hass, mock_coordinator):
+    """Test that add_comment rejects blank/whitespace-only comment text."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    with pytest.raises(HomeAssistantError, match="must not be empty"):
+        await hass.services.async_call(
+            DOMAIN,
+            "add_comment",
+            {"project_id": 1, "item_type": "task", "item_id": 1, "comment": "   "},
+            blocking=True,
+        )
+
+    mock_coordinator.api.add_comment.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_comment_wraps_api_error(hass, mock_coordinator):
+    """Test that a Taiga API failure adding a comment becomes a HomeAssistantError."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.add_comment.side_effect = TaigaApiError("boom")
+    await async_setup_services(hass)
+
+    with pytest.raises(HomeAssistantError, match="Failed to add comment"):
+        await hass.services.async_call(
+            DOMAIN,
+            "add_comment",
+            {
+                "project_id": 1,
+                "item_type": "epic",
+                "item_id": 1,
+                "comment": "Looks good",
+            },
+            blocking=True,
+        )
+
+    mock_coordinator.async_request_refresh.assert_not_awaited()

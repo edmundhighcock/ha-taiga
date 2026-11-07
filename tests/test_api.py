@@ -12,6 +12,7 @@ from aioresponses import aioresponses
 
 from custom_components.taiga.api import (
     TaigaAPI,
+    TaigaApiError,
     TaigaAuthError,
     TaigaConnectionError,
 )
@@ -189,6 +190,140 @@ async def test_update_user_story(mock_aiohttp, api, userstories_list):
     result = await api.update_user_story(58190, version=1, status=3)
 
     assert result["status"] == 3
+
+
+@pytest.mark.asyncio
+async def test_get_item_user_story(mock_aiohttp, api, userstories_list):
+    """Test get_item fetches a user story by the generic item path."""
+    api.set_token("f4k3")
+    mock_aiohttp.get(
+        f"{BASE_URL}/api/v1/userstories/58190", payload=userstories_list[0]
+    )
+
+    result = await api.get_item("user_story", 58190)
+
+    assert result["subject"] == "Test story"
+
+
+@pytest.mark.asyncio
+async def test_get_item_issue_and_epic_paths(mock_aiohttp, api):
+    """Test get_item maps issue/epic to their respective Taiga paths."""
+    api.set_token("f4k3")
+    mock_aiohttp.get(f"{BASE_URL}/api/v1/issues/5", payload={"id": 5, "version": 1})
+    mock_aiohttp.get(f"{BASE_URL}/api/v1/epics/6", payload={"id": 6, "version": 1})
+
+    issue = await api.get_item("issue", 5)
+    epic = await api.get_item("epic", 6)
+
+    assert issue["id"] == 5
+    assert epic["id"] == 6
+
+
+@pytest.mark.asyncio
+async def test_update_item_success(mock_aiohttp, api, userstories_list):
+    """Test update_item fetches the current version then PATCHes with it."""
+    api.set_token("f4k3")
+    current = userstories_list[0]
+    mock_aiohttp.get(f"{BASE_URL}/api/v1/userstories/58190", payload=current)
+    updated = {**current, "subject": "New subject", "version": 2}
+    mock_aiohttp.patch(f"{BASE_URL}/api/v1/userstories/58190", payload=updated)
+
+    result = await api.update_item("user_story", 58190, subject="New subject")
+
+    assert result["subject"] == "New subject"
+
+    history = mock_aiohttp.requests
+    patch_key = next(k for k in history if k[0] == "PATCH")
+    patch_calls = history[patch_key]
+    assert patch_calls[-1].kwargs["json"] == {
+        "version": current["version"],
+        "subject": "New subject",
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_item_retries_once_on_version_conflict(
+    mock_aiohttp, api, userstories_list
+):
+    """Test that a stale-version 400 triggers a single re-fetch-and-retry."""
+    api.set_token("f4k3")
+    stale = userstories_list[0]
+    fresh = {**stale, "version": stale["version"] + 1}
+
+    # First GET returns the stale version, first PATCH is rejected as a
+    # version conflict, second GET returns the fresh version, second PATCH
+    # succeeds.
+    mock_aiohttp.get(f"{BASE_URL}/api/v1/userstories/58190", payload=stale)
+    mock_aiohttp.patch(
+        f"{BASE_URL}/api/v1/userstories/58190",
+        status=400,
+        payload={
+            "_error_message": "Sorry, the data has changed since you last got it."
+        },
+    )
+    mock_aiohttp.get(f"{BASE_URL}/api/v1/userstories/58190", payload=fresh)
+    updated = {**fresh, "subject": "New subject"}
+    mock_aiohttp.patch(f"{BASE_URL}/api/v1/userstories/58190", payload=updated)
+
+    result = await api.update_item("user_story", 58190, subject="New subject")
+
+    assert result["subject"] == "New subject"
+
+    history = mock_aiohttp.requests
+    patch_key = next(k for k in history if k[0] == "PATCH")
+    patch_calls = history[patch_key]
+    assert len(patch_calls) == 2
+    assert patch_calls[0].kwargs["json"]["version"] == stale["version"]
+    assert patch_calls[1].kwargs["json"]["version"] == fresh["version"]
+
+
+@pytest.mark.asyncio
+async def test_update_item_does_not_retry_non_conflict_400(
+    mock_aiohttp, api, userstories_list
+):
+    """Test that a 400 unrelated to version conflicts is not retried."""
+    api.set_token("f4k3")
+    current = userstories_list[0]
+    mock_aiohttp.get(f"{BASE_URL}/api/v1/userstories/58190", payload=current)
+    mock_aiohttp.patch(
+        f"{BASE_URL}/api/v1/userstories/58190",
+        status=400,
+        payload={"subject": ["This field may not be blank."]},
+    )
+
+    with pytest.raises(TaigaApiError):
+        await api.update_item("user_story", 58190, subject="")
+
+    history = mock_aiohttp.requests
+    patch_key = next(k for k in history if k[0] == "PATCH")
+    patch_calls = history[patch_key]
+    assert len(patch_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_add_comment_patches_item_with_comment_field(
+    mock_aiohttp, api, tasks_list
+):
+    """Test add_comment fetches the version then PATCHes with a comment field."""
+    api.set_token("f4k3")
+    current = tasks_list[0]
+    mock_aiohttp.get(f"{BASE_URL}/api/v1/tasks/{current['id']}", payload=current)
+    updated = {**current, "comment": "Looks good"}
+    mock_aiohttp.patch(
+        f"{BASE_URL}/api/v1/tasks/{current['id']}", payload=updated
+    )
+
+    result = await api.add_comment("task", current["id"], "Looks good")
+
+    assert result["comment"] == "Looks good"
+
+    history = mock_aiohttp.requests
+    patch_key = next(k for k in history if k[0] == "PATCH")
+    patch_calls = history[patch_key]
+    assert patch_calls[-1].kwargs["json"] == {
+        "version": current["version"],
+        "comment": "Looks good",
+    }
 
 
 @pytest.mark.asyncio
