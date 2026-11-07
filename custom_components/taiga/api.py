@@ -22,6 +22,21 @@ class TaigaApiError(Exception):
     """Raised when an API call fails."""
 
 
+def _is_version_conflict(err: TaigaApiError) -> bool:
+    """Best-effort detection of Taiga's optimistic-concurrency 400.
+
+    A PATCH whose ``version`` field is stale is rejected with a 400 whose
+    body says the data has changed since it was last fetched. Other 400s
+    (invalid field values, etc.) look different and must not be retried,
+    or we'd just spin on a request that can never succeed.
+    """
+    message = str(err)
+    if "status 400" not in message:
+        return False
+    lowered = message.lower()
+    return "data has changed" in lowered or "version" in lowered
+
+
 class TaigaAPI:
     """Async client for the Taiga REST API."""
 
@@ -179,6 +194,58 @@ class TaigaAPI:
             f"/api/v1/epics/{epic_id}/related_userstories",
             json={"epic": epic_id, "user_story": user_story_id},
         )
+
+    _ITEM_PATHS = {
+        "user_story": "userstories",
+        "task": "tasks",
+        "issue": "issues",
+        "epic": "epics",
+    }
+
+    async def get_item(self, item_type: str, item_id: int) -> dict[str, Any]:
+        """Get a single item (user story, task, issue, or epic) by its id."""
+        return await self._get(f"/api/v1/{self._ITEM_PATHS[item_type]}/{item_id}")
+
+    async def _patch_item(
+        self, item_type: str, item_id: int, **fields: Any
+    ) -> dict[str, Any]:
+        return await self._patch(
+            f"/api/v1/{self._ITEM_PATHS[item_type]}/{item_id}", json=fields
+        )
+
+    async def update_item(
+        self, item_type: str, item_id: int, **fields: Any
+    ) -> dict[str, Any]:
+        """Update any item's fields, retrying once on a stale version.
+
+        Taiga requires the item's current ``version`` with every PATCH
+        for optimistic concurrency. We fetch the item for its current
+        version, PATCH, and if that's rejected as a version conflict
+        (something else changed the item in the meantime) we re-fetch
+        and try once more before giving up.
+        """
+        item = await self.get_item(item_type, item_id)
+        try:
+            return await self._patch_item(
+                item_type, item_id, version=item["version"], **fields
+            )
+        except TaigaApiError as err:
+            if not _is_version_conflict(err):
+                raise
+            item = await self.get_item(item_type, item_id)
+            return await self._patch_item(
+                item_type, item_id, version=item["version"], **fields
+            )
+
+    async def add_comment(
+        self, item_type: str, item_id: int, comment: str
+    ) -> dict[str, Any]:
+        """Add a comment to an item.
+
+        Taiga has no separate write endpoint for comments: a comment is
+        posted by PATCHing the item itself with a ``comment`` field.
+        """
+        return await self.update_item(item_type, item_id, comment=comment)
 
     def _headers(self, list_request: bool = False) -> dict[str, str]:
         headers: dict[str, str] = {"Content-Type": "application/json"}
