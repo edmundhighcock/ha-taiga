@@ -102,7 +102,17 @@ statuses:
 | `taiga.change_status` | Change an item's status |
 | `taiga.create_user_story` | Create a new user story |
 | `taiga.create_task` | Create a new task |
+| `taiga.update_user_story` | Modify an existing user story's subject, description, or tags |
+| `taiga.update_task` | Modify an existing task's subject or description |
+| `taiga.add_comment` | Add a comment to a user story, task, issue, or epic |
 | `taiga.refresh` | Force a data refresh |
+
+`update_user_story` and `update_task` require at least one of their
+optional fields; `add_comment` requires non-empty `comment` text. Taiga
+needs each item's current `version` for these writes (optimistic
+concurrency): the integration fetches it automatically and, if a 400
+shows the version went stale in the meantime, re-fetches and retries
+once before giving up.
 
 ## Development
 
