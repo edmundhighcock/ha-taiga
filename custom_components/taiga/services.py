@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from typing import Any
 
@@ -17,6 +18,27 @@ from .coordinator import TaigaCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 VALID_ITEM_TYPES = {"user_story", "task", "issue", "epic"}
+
+
+def _validate_due_date(value: Any) -> Any:
+    """Validate due_date is an ISO date (YYYY-MM-DD), or "" to clear it."""
+    if value in (None, ""):
+        return value
+    try:
+        dt.date.fromisoformat(str(value))
+    except ValueError as err:
+        raise vol.Invalid("due_date must be in YYYY-MM-DD format") from err
+    return value
+
+
+# Services that accept a due_date field get this schema so the format is
+# checked before the handler runs. Everything else is left untouched (the
+# individual fields are otherwise unvalidated here; services.yaml drives the
+# UI selectors), hence ALLOW_EXTRA.
+DUE_DATE_SCHEMA = vol.Schema(
+    {vol.Optional("due_date"): _validate_due_date},
+    extra=vol.ALLOW_EXTRA,
+)
 
 
 def _get_coordinator(
@@ -131,6 +153,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         if tags := call.data.get("tags"):
             kwargs["tags"] = _parse_tags(tags)
 
+        if due_date := call.data.get("due_date"):
+            kwargs["due_date"] = due_date
+
         result = await coordinator.api.create_user_story(project_id, subject, **kwargs)
 
         # If epic_id specified, link the story to the epic. The story already
@@ -159,6 +184,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 coordinator, project_id, "task", status_name
             )
 
+        if due_date := call.data.get("due_date"):
+            kwargs["due_date"] = due_date
+
         await coordinator.api.create_task(project_id, subject, **kwargs)
         await coordinator.async_request_refresh()
 
@@ -175,10 +203,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             kwargs["description"] = description
         if tags := call.data.get("tags"):
             kwargs["tags"] = _parse_tags(tags)
+        if "due_date" in call.data:
+            # An explicit empty value clears the due date (sent as null).
+            kwargs["due_date"] = call.data["due_date"] or None
 
         if not kwargs:
             raise HomeAssistantError(
-                "At least one of subject, description, or tags must be provided"
+                "At least one of subject, description, tags, or due_date "
+                "must be provided"
             )
 
         try:
@@ -201,10 +233,14 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             kwargs["subject"] = subject
         if (description := call.data.get("description")) is not None:
             kwargs["description"] = description
+        if "due_date" in call.data:
+            # An explicit empty value clears the due date (sent as null).
+            kwargs["due_date"] = call.data["due_date"] or None
 
         if not kwargs:
             raise HomeAssistantError(
-                "At least one of subject or description must be provided"
+                "At least one of subject, description, or due_date must be "
+                "provided"
             )
 
         try:
@@ -247,10 +283,24 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             await coordinator.async_request_refresh()
 
     hass.services.async_register(DOMAIN, "change_status", handle_change_status)
-    hass.services.async_register(DOMAIN, "create_user_story", handle_create_user_story)
-    hass.services.async_register(DOMAIN, "create_task", handle_create_task)
-    hass.services.async_register(DOMAIN, "update_user_story", handle_update_user_story)
-    hass.services.async_register(DOMAIN, "update_task", handle_update_task)
+    hass.services.async_register(
+        DOMAIN,
+        "create_user_story",
+        handle_create_user_story,
+        schema=DUE_DATE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN, "create_task", handle_create_task, schema=DUE_DATE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "update_user_story",
+        handle_update_user_story,
+        schema=DUE_DATE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN, "update_task", handle_update_task, schema=DUE_DATE_SCHEMA
+    )
     hass.services.async_register(DOMAIN, "add_comment", handle_add_comment)
     hass.services.async_register(DOMAIN, "refresh", handle_refresh)
 

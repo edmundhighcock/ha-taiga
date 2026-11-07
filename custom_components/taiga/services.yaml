@@ -79,6 +79,12 @@ create_user_story:
       required: false
       selector:
         text:
+    due_date:
+      name: Due Date
+      description: Optional due date, as an ISO date (YYYY-MM-DD)
+      required: false
+      selector:
+        text:
 
 create_task:
   name: Create Task
@@ -112,10 +118,16 @@ create_task:
       required: false
       selector:
         text:
+    due_date:
+      name: Due Date
+      description: Optional due date, as an ISO date (YYYY-MM-DD)
+      required: false
+      selector:
+        text:
 
 update_user_story:
   name: Update User Story
-  description: Modify an existing user story's subject, description, or tags
+  description: Modify an existing user story's subject, description, tags, or due date
   fields:
     project_id:
       name: Project ID
@@ -152,10 +164,18 @@ update_user_story:
       required: false
       selector:
         text:
+    due_date:
+      name: Due Date
+      description: >-
+        Optional due date, as an ISO date (YYYY-MM-DD). Pass an empty
+        value to clear an existing due date.
+      required: false
+      selector:
+        text:
 
 update_task:
   name: Update Task
-  description: Modify an existing task's subject or description
+  description: Modify an existing task's subject, description, or due date
   fields:
     project_id:
       name: Project ID
@@ -186,6 +206,14 @@ update_task:
       selector:
         text:
           multiline: true
+    due_date:
+      name: Due Date
+      description: >-
+        Optional due date, as an ISO date (YYYY-MM-DD). Pass an empty
+        value to clear an existing due date.
+      required: false
+      selector:
+        text:
 
 add_comment:
   name: Add Comment
