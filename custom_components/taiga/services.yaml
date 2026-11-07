@@ -113,6 +113,119 @@ create_task:
       selector:
         text:
 
+update_user_story:
+  name: Update User Story
+  description: Modify an existing user story's subject, description, or tags
+  fields:
+    project_id:
+      name: Project ID
+      description: The Taiga project ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    user_story_id:
+      name: User Story ID
+      description: The Taiga ID of the user story to update
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    subject:
+      name: Subject
+      description: New subject/title for the user story
+      required: false
+      selector:
+        text:
+    description:
+      name: Description
+      description: New description for the user story
+      required: false
+      selector:
+        text:
+          multiline: true
+    tags:
+      name: Tags
+      description: Comma-separated tags (or a list of tag strings when called from a script/automation)
+      required: false
+      selector:
+        text:
+
+update_task:
+  name: Update Task
+  description: Modify an existing task's subject or description
+  fields:
+    project_id:
+      name: Project ID
+      description: The Taiga project ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    task_id:
+      name: Task ID
+      description: The Taiga ID of the task to update
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    subject:
+      name: Subject
+      description: New subject/title for the task
+      required: false
+      selector:
+        text:
+    description:
+      name: Description
+      description: New description for the task
+      required: false
+      selector:
+        text:
+          multiline: true
+
+add_comment:
+  name: Add Comment
+  description: Add a comment to a user story, task, issue, or epic
+  fields:
+    project_id:
+      name: Project ID
+      description: The Taiga project ID
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    item_type:
+      name: Item Type
+      description: Type of item to comment on
+      required: true
+      selector:
+        select:
+          options:
+            - user_story
+            - task
+            - issue
+            - epic
+    item_id:
+      name: Item ID
+      description: The Taiga ID of the item to comment on
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    comment:
+      name: Comment
+      description: The comment text
+      required: true
+      selector:
+        text:
+          multiline: true
+
 refresh:
   name: Refresh
   description: Force refresh Taiga data

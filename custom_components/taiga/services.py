@@ -10,10 +10,13 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 
+from .api import TaigaApiError
 from .const import DOMAIN
 from .coordinator import TaigaCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+VALID_ITEM_TYPES = {"user_story", "task", "issue", "epic"}
 
 
 def _get_coordinator(
@@ -70,6 +73,13 @@ def _resolve_status_id(
     )
 
 
+def _parse_tags(tags: Any) -> list[str]:
+    """Accept tags as a comma-separated string or a list and normalize to a list."""
+    if isinstance(tags, str):
+        return [t.strip() for t in tags.split(",")]
+    return list(tags)
+
+
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up Taiga services."""
 
@@ -119,10 +129,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             )
 
         if tags := call.data.get("tags"):
-            if isinstance(tags, str):
-                kwargs["tags"] = [t.strip() for t in tags.split(",")]
-            else:
-                kwargs["tags"] = list(tags)
+            kwargs["tags"] = _parse_tags(tags)
 
         result = await coordinator.api.create_user_story(project_id, subject, **kwargs)
 
@@ -155,6 +162,85 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         await coordinator.api.create_task(project_id, subject, **kwargs)
         await coordinator.async_request_refresh()
 
+    async def handle_update_user_story(call: ServiceCall) -> None:
+        """Handle update_user_story service call."""
+        project_id = int(call.data["project_id"])
+        user_story_id = int(call.data["user_story_id"])
+        coordinator = _get_coordinator(hass, project_id)
+
+        kwargs: dict[str, Any] = {}
+        if (subject := call.data.get("subject")) is not None:
+            kwargs["subject"] = subject
+        if (description := call.data.get("description")) is not None:
+            kwargs["description"] = description
+        if tags := call.data.get("tags"):
+            kwargs["tags"] = _parse_tags(tags)
+
+        if not kwargs:
+            raise HomeAssistantError(
+                "At least one of subject, description, or tags must be provided"
+            )
+
+        try:
+            await coordinator.api.update_item("user_story", user_story_id, **kwargs)
+        except TaigaApiError as err:
+            raise HomeAssistantError(
+                f"Failed to update user story {user_story_id}: {err}"
+            ) from err
+
+        await coordinator.async_request_refresh()
+
+    async def handle_update_task(call: ServiceCall) -> None:
+        """Handle update_task service call."""
+        project_id = int(call.data["project_id"])
+        task_id = int(call.data["task_id"])
+        coordinator = _get_coordinator(hass, project_id)
+
+        kwargs: dict[str, Any] = {}
+        if (subject := call.data.get("subject")) is not None:
+            kwargs["subject"] = subject
+        if (description := call.data.get("description")) is not None:
+            kwargs["description"] = description
+
+        if not kwargs:
+            raise HomeAssistantError(
+                "At least one of subject or description must be provided"
+            )
+
+        try:
+            await coordinator.api.update_item("task", task_id, **kwargs)
+        except TaigaApiError as err:
+            raise HomeAssistantError(
+                f"Failed to update task {task_id}: {err}"
+            ) from err
+
+        await coordinator.async_request_refresh()
+
+    async def handle_add_comment(call: ServiceCall) -> None:
+        """Handle add_comment service call."""
+        project_id = int(call.data["project_id"])
+        item_type: str = call.data["item_type"]
+        item_id = int(call.data["item_id"])
+        comment: str = call.data["comment"]
+
+        if item_type not in VALID_ITEM_TYPES:
+            raise HomeAssistantError(
+                f"Invalid item_type '{item_type}'. Must be one of: "
+                + ", ".join(sorted(VALID_ITEM_TYPES))
+            )
+
+        if not comment or not comment.strip():
+            raise HomeAssistantError("comment must not be empty")
+
+        coordinator = _get_coordinator(hass, project_id)
+
+        try:
+            await coordinator.api.add_comment(item_type, item_id, comment)
+        except TaigaApiError as err:
+            raise HomeAssistantError(f"Failed to add comment: {err}") from err
+
+        await coordinator.async_request_refresh()
+
     async def handle_refresh(call: ServiceCall) -> None:
         """Handle refresh service call."""
         for coordinator in hass.data.get(DOMAIN, {}).values():
@@ -163,6 +249,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, "change_status", handle_change_status)
     hass.services.async_register(DOMAIN, "create_user_story", handle_create_user_story)
     hass.services.async_register(DOMAIN, "create_task", handle_create_task)
+    hass.services.async_register(DOMAIN, "update_user_story", handle_update_user_story)
+    hass.services.async_register(DOMAIN, "update_task", handle_update_task)
+    hass.services.async_register(DOMAIN, "add_comment", handle_add_comment)
     hass.services.async_register(DOMAIN, "refresh", handle_refresh)
 
 
@@ -171,4 +260,7 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, "change_status")
     hass.services.async_remove(DOMAIN, "create_user_story")
     hass.services.async_remove(DOMAIN, "create_task")
+    hass.services.async_remove(DOMAIN, "update_user_story")
+    hass.services.async_remove(DOMAIN, "update_task")
+    hass.services.async_remove(DOMAIN, "add_comment")
     hass.services.async_remove(DOMAIN, "refresh")
