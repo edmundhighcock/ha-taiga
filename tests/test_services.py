@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import voluptuous as vol
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.taiga.api import TaigaApiError
@@ -415,3 +416,164 @@ async def test_add_comment_wraps_api_error(hass, mock_coordinator):
         )
 
     mock_coordinator.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_user_story_with_due_date(hass, mock_coordinator):
+    """Test that create_user_story forwards a due_date to the API."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.create_user_story.return_value = {"id": 42}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "create_user_story",
+        {"project_id": 1, "subject": "A story", "due_date": "2027-02-07"},
+        blocking=True,
+    )
+
+    mock_coordinator.api.create_user_story.assert_awaited_once_with(
+        1, "A story", due_date="2027-02-07"
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_user_story_rejects_bad_due_date(hass, mock_coordinator):
+    """Test that a malformed due_date is rejected before the handler runs."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            "create_user_story",
+            {"project_id": 1, "subject": "A story", "due_date": "07/02/2027"},
+            blocking=True,
+        )
+
+    mock_coordinator.api.create_user_story.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_task_with_due_date(hass, mock_coordinator):
+    """Test that create_task forwards a due_date to the API."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    mock_coordinator.api.create_task.return_value = {"id": 99}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "create_task",
+        {"project_id": 1, "subject": "A task", "due_date": "2027-02-07"},
+        blocking=True,
+    )
+
+    mock_coordinator.api.create_task.assert_awaited_once_with(
+        1, "A task", due_date="2027-02-07"
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_user_story_with_due_date(hass, mock_coordinator):
+    """Test that update_user_story forwards a due_date to update_item."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_user_story",
+        {"project_id": 1, "user_story_id": 58190, "due_date": "2027-02-07"},
+        blocking=True,
+    )
+
+    mock_coordinator.api.update_item.assert_awaited_once_with(
+        "user_story", 58190, due_date="2027-02-07"
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_user_story_clears_due_date(hass, mock_coordinator):
+    """Test that an explicit empty due_date clears it (sent as null)."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_user_story",
+        {"project_id": 1, "user_story_id": 58190, "due_date": ""},
+        blocking=True,
+    )
+
+    mock_coordinator.api.update_item.assert_awaited_once_with(
+        "user_story", 58190, due_date=None
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_user_story_rejects_bad_due_date(hass, mock_coordinator):
+    """Test that a malformed due_date is rejected before the handler runs."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            "update_user_story",
+            {"project_id": 1, "user_story_id": 58190, "due_date": "not-a-date"},
+            blocking=True,
+        )
+
+    mock_coordinator.api.update_item.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_task_with_due_date(hass, mock_coordinator):
+    """Test that update_task forwards a due_date to update_item."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_task",
+        {"project_id": 1, "task_id": 1149, "due_date": "2027-02-07"},
+        blocking=True,
+    )
+
+    mock_coordinator.api.update_item.assert_awaited_once_with(
+        "task", 1149, due_date="2027-02-07"
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_task_clears_due_date(hass, mock_coordinator):
+    """Test that an explicit empty due_date clears it (sent as null)."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_task",
+        {"project_id": 1, "task_id": 1149, "due_date": ""},
+        blocking=True,
+    )
+
+    mock_coordinator.api.update_item.assert_awaited_once_with(
+        "task", 1149, due_date=None
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_task_rejects_bad_due_date(hass, mock_coordinator):
+    """Test that a malformed due_date is rejected before the handler runs."""
+    hass.data = {DOMAIN: {"entry1": mock_coordinator}}
+    await async_setup_services(hass)
+
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            "update_task",
+            {"project_id": 1, "task_id": 1149, "due_date": "2027-02-30"},
+            blocking=True,
+        )
+
+    mock_coordinator.api.update_item.assert_not_awaited()
